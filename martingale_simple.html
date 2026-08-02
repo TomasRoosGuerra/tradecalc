@@ -276,6 +276,41 @@
         width: 100%;
       }
 
+      /* ---- hover tooltips: any element with data-tip ---- */
+      [data-tip] {
+        cursor: help;
+        text-decoration: underline dotted rgba(134, 134, 139, 0.7);
+        text-underline-offset: 3px;
+      }
+
+      /* Single shared node, fixed to the viewport: an absolutely positioned
+         tooltip would be clipped by the scrolling sidebar and table wrappers */
+      #tooltip {
+        position: fixed;
+        z-index: 100;
+        max-width: 260px;
+        background: #1d1d1f;
+        color: #fff;
+        font-size: 11.5px;
+        font-weight: 400;
+        line-height: 1.5;
+        letter-spacing: 0;
+        text-transform: none;
+        text-align: left;
+        padding: 8px 10px;
+        border-radius: 6px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.12s ease;
+      }
+
+      #tooltip.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
       .error-banner {
         display: none;
         background: #fff1f0;
@@ -361,6 +396,8 @@
     </style>
   </head>
   <body>
+    <div id="tooltip" role="tooltip"></div>
+
     <div class="app">
       <aside class="sidebar">
         <h1>Martingale Analyzer</h1>
@@ -380,14 +417,14 @@
 
         <div class="two-col">
           <div class="card">
-            <div class="card-title">Final Capital Distribution</div>
+            <div class="card-title"><span data-tip="Each bar counts how many of the 1000 runs finished with a profit in that range. Tall bars = common outcomes. Red = the account busted.">Final Capital Distribution</span></div>
             <canvas id="histogramCanvas"></canvas>
             <div class="legend">
               1000 runs · red bins = busted · dashed line = breakeven
             </div>
           </div>
           <div class="card">
-            <div class="card-title">Sample Equity Curves</div>
+            <div class="card-title"><span data-tip="20 example runs, trade by trade. Each line is one possible month with your settings — same strategy, different luck.">Sample Equity Curves</span></div>
             <canvas id="equityCanvas"></canvas>
             <div class="legend">
               20 runs · red = busted · dashed line = starting capital
@@ -397,23 +434,67 @@
 
         <div class="stat-grid" id="percentileStats"></div>
 
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">Loss Streak Probabilities</div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th data-tip="A chain of losses in a row. ≥ 5 means five or more consecutive losing trades.">Streak</th>
+                    <th data-tip="Chance that a run of this many trades contains a losing streak at least this long, taken from the 1000 simulations.">P(occurs in run)</th>
+                    <th style="width: 45%"></th>
+                  </tr>
+                </thead>
+                <tbody id="streakTableBody"></tbody>
+              </table>
+            </div>
+            <div class="legend">
+              Chance a run contains ≥ N consecutive losses, from simulation
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Best Base Size vs Hit Rate</div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th data-tip="Assumed win rate for this row. Each row answers: if THIS were your true hit rate, how should you size?">Hit Rate</th>
+                    <th data-tip="The math-optimal base size (full Kelly formula) for this hit rate with your current TP, SL and costs. 0% means no edge exists — the correct bet is nothing.">Kelly</th>
+                    <th data-tip="The base entry size (of the 5–50% tried) that gave the highest median outcome in simulation.">Best Size</th>
+                    <th data-tip="Middle outcome when using that best size — half of runs did better, half worse.">Median</th>
+                    <th data-tip="Share of runs that busted at that best size.">Ruin</th>
+                    <th data-tip="Share of runs that reached your Target $ at that best size.">Target</th>
+                  </tr>
+                </thead>
+                <tbody id="sizingTableBody"></tbody>
+              </table>
+            </div>
+            <div class="legend">
+              Base size when flat (martingale overrides after losses) · best =
+              highest median of 5–50% sweep · Kelly = full Kelly from
+              TP/SL/costs · 200 runs per cell
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-title">
-            Worst-Case Loss Streak · price levels
-            <span id="priceLevelsInline" style="text-transform: none; letter-spacing: 0; font-weight: 500"></span>
+            <span data-tip="What happens if every trade loses, back to back, with martingale sizing. Shows how many losses in a row the strategy survives before recovery becomes impossible.">Worst-Case Loss Streak</span> · price levels
+            <span id="priceLevelsInline" style="text-transform: none; letter-spacing: 0; font-weight: 500" data-tip="Where your stop loss and take profit sit in actual price, from the Entry Price input. Display only."></span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Loss</th>
-                  <th>Risked</th>
-                  <th>Price Move</th>
-                  <th>Fees</th>
-                  <th>Total Loss</th>
-                  <th>Capital Left</th>
-                  <th>To Recover</th>
-                  <th>Next Size</th>
+                  <th data-tip="Position in the losing streak: 1st loss in a row, 2nd loss in a row, and so on.">Loss</th>
+                  <th data-tip="Money put into this trade. Grows each loss because martingale bets bigger to win the hole back.">Risked</th>
+                  <th data-tip="Money lost from the price hitting your stop loss, on the full leveraged position.">Price Move</th>
+                  <th data-tip="Broker fee (both ways) plus spread and slippage on the leveraged position.">Fees</th>
+                  <th data-tip="Price move loss + fees. What this single trade actually cost you.">Total Loss</th>
+                  <th data-tip="Capital remaining after this loss.">Capital Left</th>
+                  <th data-tip="The total hole so far — what one winning trade must earn to get you back to where you started.">To Recover</th>
+                  <th data-tip="Share of remaining capital the NEXT trade must risk to dig out of the hole. At 100% the strategy is broken — no trade can be big enough.">Next Size</th>
                 </tr>
               </thead>
               <tbody id="lossTableBody"></tbody>
@@ -430,21 +511,38 @@
       // Input config — single source of truth for build, parse, persist
       // ---------------------------------------------------------------
       const INPUTS = [
-        { id: "initialTreasure", label: "Capital $", group: "Strategy", def: 120000, step: 1000, min: 1, scale: 1 },
-        { id: "entryPercentage", label: "Entry %", group: "Strategy", def: 25, step: 1, min: 1, max: 100, scale: 0.01 },
-        { id: "stopLoss", label: "Stop Loss %", group: "Strategy", def: 8, step: 0.1, min: 0.1, scale: 0.01 },
-        { id: "takeProfit", label: "Take Profit %", group: "Strategy", def: 16, step: 0.1, min: 0.1, scale: 0.01 },
-        { id: "leverage", label: "Leverage", group: "Strategy", def: 1, step: 0.1, min: 1, scale: 1 },
-        { id: "hitRate", label: "Hit Rate %", group: "Strategy", def: 30, step: 1, min: 1, max: 99, scale: 0.01 },
-        { id: "tradesAmount", label: "Trades", group: "Strategy", def: 100, step: 1, min: 1, max: 1000, scale: 1, int: true },
-        { id: "seed", label: "Seed", group: "Strategy", def: 1, step: 1, min: 0, scale: 1, int: true },
-        { id: "brokerageFee", label: "Fee $/trade", group: "Costs", def: 5, step: 0.5, min: 0, scale: 1 },
-        { id: "spreadCost", label: "Spread %", group: "Costs", def: 0.1, step: 0.01, min: 0, max: 5, scale: 0.01 },
-        { id: "slippage", label: "Slippage %", group: "Costs", def: 0.05, step: 0.01, min: 0, max: 2, scale: 0.01 },
-        { id: "entryPrice", label: "Entry Price $", group: "Display", def: 2.58, step: 0.01, min: 0, scale: 1 },
-        { id: "priceDecimals", label: "Price dp", group: "Display", def: 4, step: 1, min: 0, max: 6, scale: 1, int: true },
-        { id: "moneyDecimals", label: "Money dp", group: "Display", def: 2, step: 1, min: 0, max: 6, scale: 1, int: true },
-        { id: "percentageDecimals", label: "Percent dp", group: "Display", def: 1, step: 1, min: 0, max: 4, scale: 1, int: true },
+        { id: "initialTreasure", label: "Capital $", group: "Strategy", def: 120000, step: 1000, min: 1, scale: 1,
+          tip: "The money you start with. Every result is measured against this." },
+        { id: "targetCapital", label: "Target $", group: "Strategy", def: 240000, step: 1000, min: 1, scale: 1,
+          tip: "Your goal. The simulator reports what share of runs ever grow the capital to this amount." },
+        { id: "entryPercentage", label: "Entry %", group: "Strategy", def: 25, step: 1, min: 1, max: 100, scale: 0.01,
+          tip: "Share of your capital put into a trade when you have no losses to win back. After a loss, martingale sizing takes over and bets more." },
+        { id: "stopLoss", label: "Stop Loss %", group: "Strategy", def: 8, step: 0.1, min: 0.1, scale: 0.01,
+          tip: "How far the price moves against you before the trade closes at a loss. Bigger = each loss hurts more." },
+        { id: "takeProfit", label: "Take Profit %", group: "Strategy", def: 16, step: 0.1, min: 0.1, scale: 0.01,
+          tip: "How far the price moves in your favor before the trade closes as a win." },
+        { id: "leverage", label: "Leverage", group: "Strategy", def: 1, step: 0.1, min: 1, scale: 1,
+          tip: "Borrowed size multiplier. 16x means a 1% price move changes your stake by 16%. Multiplies wins, losses, and spread costs alike." },
+        { id: "hitRate", label: "Hit Rate %", group: "Strategy", def: 30, step: 1, min: 1, max: 99, scale: 0.01,
+          tip: "How often you expect to win a trade. The single biggest assumption in the whole simulation — guess too high and every result is fiction." },
+        { id: "tradesAmount", label: "Trades", group: "Strategy", def: 100, step: 1, min: 1, max: 1000, scale: 1, int: true,
+          tip: "Number of trades in each simulated run." },
+        { id: "seed", label: "Seed", group: "Strategy", def: 1, step: 1, min: 0, scale: 1, int: true,
+          tip: "Starting point for the random numbers. Same seed = exact same result, so you can compare settings fairly. Change it to reroll." },
+        { id: "brokerageFee", label: "Fee $/trade", group: "Costs", def: 5, step: 0.5, min: 0, scale: 1,
+          tip: "Flat charge your broker takes per order. Paid twice per trade: once to enter, once to exit." },
+        { id: "spreadCost", label: "Spread %", group: "Costs", def: 0.1, step: 0.01, min: 0, max: 5, scale: 0.01,
+          tip: "Gap between buy and sell price — a hidden cost paid on the full leveraged position every trade." },
+        { id: "slippage", label: "Slippage %", group: "Costs", def: 0.05, step: 0.01, min: 0, max: 2, scale: 0.01,
+          tip: "How much worse your actual fill is than the price you clicked. Also paid on the full leveraged position." },
+        { id: "entryPrice", label: "Entry Price $", group: "Display", def: 2.58, step: 0.01, min: 0, scale: 1,
+          tip: "Only used to show stop-loss and take-profit price levels. Does not affect the simulation." },
+        { id: "priceDecimals", label: "Price dp", group: "Display", def: 4, step: 1, min: 0, max: 6, scale: 1, int: true,
+          tip: "Decimal places shown on prices." },
+        { id: "moneyDecimals", label: "Money dp", group: "Display", def: 2, step: 1, min: 0, max: 6, scale: 1, int: true,
+          tip: "Decimal places shown on money amounts." },
+        { id: "percentageDecimals", label: "Percent dp", group: "Display", def: 1, step: 1, min: 0, max: 4, scale: 1, int: true,
+          tip: "Decimal places shown on percentages." },
       ];
 
       const COLLAPSED_GROUPS = ["Display"];
@@ -567,12 +665,12 @@
         };
       }
 
-      function runMonteCarlo(p, seed) {
+      function runMonteCarlo(p, seed, sims = SIMULATIONS, wantCurves = true) {
         const rng = makeRng(seed);
         const runs = [];
         const equityCurves = [];
 
-        for (let sim = 0; sim < SIMULATIONS; sim++) {
+        for (let sim = 0; sim < sims; sim++) {
           let treasure = p.initialTreasure;
           let lossSoFar = 0;
           let wins = 0;
@@ -581,7 +679,7 @@
           let maxStreak = 0;
           let busted = false;
           let tradesToRuin = null;
-          const curve = sim < 20 ? [treasure] : null;
+          const curve = wantCurves && sim < 20 ? [treasure] : null;
 
           for (let trade = 0; trade < p.tradesAmount; trade++) {
             const isWin = rng() < p.hitRate;
@@ -643,10 +741,25 @@
 
         const mean = profits.reduce((a, b) => a + b, 0) / profits.length;
 
+        const targetProfit = p.targetCapital - p.initialTreasure;
+        const streakDist = [];
+        for (let k = 1; k <= 12; k++) {
+          streakDist.push({
+            k,
+            pct:
+              (runs.filter((r) => r.maxStreak >= k).length / runs.length) * 100,
+          });
+        }
+
         return {
           profits,
           equityCurves,
           mean,
+          reachPct:
+            (runs.filter((r) => r.profit >= targetProfit).length /
+              runs.length) *
+            100,
+          streakDist,
           p5: percentile(profits, 0.05),
           p25: percentile(profits, 0.25),
           median: median(profits),
@@ -665,6 +778,47 @@
         };
       }
 
+      // Full-Kelly base entry fraction for given hit rate + current TP/SL/costs.
+      // f* = p - q/b is the optimal fraction of capital AT RISK per trade;
+      // entry fraction = f* / (capital lost per $1 of entry)
+      function kellyEntryFraction(hitRate, p) {
+        const winPerEntry = netTakeProfitRate(p);
+        const lossPerEntry =
+          p.leverage * (p.stopLoss + p.spreadCost + p.slippage);
+        const b = winPerEntry / lossPerEntry;
+        const f = hitRate - (1 - hitRate) / b;
+        if (f <= 0) return 0;
+        return Math.min(f / lossPerEntry, 1);
+      }
+
+      const SWEEP_HIT_RATES = [0.3, 0.4, 0.45, 0.5, 0.55, 0.6];
+      const SWEEP_ENTRIES = [0.05, 0.1, 0.15, 0.25, 0.33, 0.5];
+      const SWEEP_SIMS = 200;
+
+      // For each hit rate, try base entry sizes, keep the one with best median
+      function sizingSweep(p) {
+        return SWEEP_HIT_RATES.map((hr) => {
+          let best = null;
+          for (const e of SWEEP_ENTRIES) {
+            const mc = runMonteCarlo(
+              { ...p, hitRate: hr, entryPercentage: e },
+              p.seed,
+              SWEEP_SIMS,
+              false
+            );
+            if (!best || mc.median > best.mc.median) best = { e, mc };
+          }
+          return {
+            hitRate: hr,
+            kelly: kellyEntryFraction(hr, p),
+            bestEntry: best.e,
+            median: best.mc.median,
+            ruin: best.mc.ruinPct,
+            reach: best.mc.reachPct,
+          };
+        });
+      }
+
       // ---------------------------------------------------------------
       // UI
       // ---------------------------------------------------------------
@@ -674,7 +828,7 @@
       function fieldHtml(cfg) {
         return `
           <div class="field">
-            <label for="${cfg.id}" title="${cfg.label}">${cfg.label}</label>
+            <label for="${cfg.id}" ${cfg.tip ? `data-tip="${cfg.tip}"` : ""}>${cfg.label}</label>
             <input type="number" id="${cfg.id}" value="${cfg.def}"
               step="${cfg.step}"
               ${cfg.min !== undefined ? `min="${cfg.min}"` : ""}
@@ -759,12 +913,12 @@
         );
       }
 
-      function stat(value, label, tone) {
+      function stat(value, label, tone, tip) {
         const cls = tone ? ` ${tone}` : "";
         return `
           <div class="stat">
             <div class="stat-value${cls}">${value}</div>
-            <div class="stat-label">${label}</div>
+            <div class="stat-label" ${tip ? `data-tip="${tip}"` : ""}>${label}</div>
           </div>`;
       }
 
@@ -778,7 +932,7 @@
 
       // Two independent failure modes: blowing up, and bleeding out.
       // Low ruin risk with a negative median is still a losing strategy.
-      function updateVerdict(mc, streak) {
+      function updateVerdict(mc, streak, p) {
         const ruin = mc.ruinPct;
         const medianLossFrac = -mc.median / mc.initialTreasure;
 
@@ -799,42 +953,98 @@
 
         el("verdict").className = `card verdict ${cls}`;
         el("verdict").innerHTML = `
-          <div class="verdict-label">${ruinLabel} · ${edgeLabel}</div>
+          <div class="verdict-label" data-tip="Two separate dangers, judged separately. Ruin risk: chance of blowing up the account entirely. Edge: whether the typical run makes or loses money. Low ruin risk with a negative edge still means you slowly bleed out.">${ruinLabel} · ${edgeLabel}</div>
           <div class="verdict-note">
             ${ruin.toFixed(1)}% of ${mc.totalRuns} runs busted ·
             survives ${streak.maxConsecutiveLosses} consecutive losses ·
             median outcome ${money(mc.median, 0)} ·
-            ${mc.profitablePct.toFixed(0)}% of runs profitable
+            ${mc.profitablePct.toFixed(0)}% of runs profitable ·
+            ${mc.reachPct.toFixed(1)}% reach ${money(p.targetCapital, 0)}
           </div>`;
       }
 
       function updateHeadline(mc, p) {
         const d = p.moneyDecimals;
         el("headlineStats").innerHTML = [
-          stat(mc.ruinPct.toFixed(1) + "%", "Risk of ruin", mc.ruinPct > 0 ? "neg" : ""),
-          stat(money(mc.median, d), "Median profit", toneOf(mc.median)),
-          stat(mc.profitablePct.toFixed(1) + "%", "Profitable runs"),
+          stat(mc.ruinPct.toFixed(1) + "%", "Risk of ruin", mc.ruinPct > 0 ? "neg" : "",
+            "Share of the 1000 simulated runs that ended with 1% or less of the starting capital — the account is effectively dead."),
+          stat(
+            mc.reachPct.toFixed(1) + "%",
+            `Reach ${money(p.targetCapital, 0)}`,
+            mc.reachPct > 50 ? "pos" : "",
+            "Share of runs that grew the capital to your Target $ at any point during the run."
+          ),
+          stat(money(mc.median, d), "Median profit", toneOf(mc.median),
+            "The middle outcome: half of all runs did better than this, half did worse. More honest than the average, which one lucky run can drag up."),
+          stat(mc.profitablePct.toFixed(1) + "%", "Profitable runs", "",
+            "Share of runs that ended with more money than they started with."),
           stat(
             mc.medianTradesToRuin !== null
               ? Math.round(mc.medianTradesToRuin)
               : "—",
-            "Median trades to ruin"
+            "Median trades to ruin",
+            "",
+            "Among the runs that busted: the typical number of trades it took to die. A dash means no run busted."
           ),
-          stat(mc.maxLossStreak, "Worst loss streak"),
-          stat(mc.avgHitRate.toFixed(1) + "%", "Realized hit rate"),
+          stat(mc.maxLossStreak, "Worst loss streak", "",
+            "The longest chain of losses in a row seen across all 1000 runs. Your sizing must survive this to survive the month."),
+          stat(mc.avgHitRate.toFixed(1) + "%", "Realized hit rate", "",
+            "The win rate that actually happened in the simulations. Should sit near your Hit Rate input — randomness makes it wobble."),
         ].join("");
+      }
+
+      function updateStreakTable(mc) {
+        const maxPct = mc.streakDist[0]?.pct || 1;
+        el("streakTableBody").innerHTML = mc.streakDist
+          .filter((s) => s.k <= 4 || s.pct >= 0.1)
+          .map(
+            (s) => `
+            <tr>
+              <td>≥ ${s.k}</td>
+              <td>${s.pct.toFixed(1)}%</td>
+              <td><div style="height:8px;border-radius:4px;background:${
+                s.pct >= 50 ? "#d70015" : "#0071e3"
+              };width:${Math.max((s.pct / maxPct) * 100, 1)}%"></div></td>
+            </tr>`
+          )
+          .join("");
+      }
+
+      function updateSizingTable(rows, p) {
+        el("sizingTableBody").innerHTML = rows
+          .map(
+            (r) => `
+            <tr>
+              <td>${(r.hitRate * 100).toFixed(0)}%</td>
+              <td>${(r.kelly * 100).toFixed(0)}%</td>
+              <td class="pct">${(r.bestEntry * 100).toFixed(0)}%</td>
+              <td class="emphasis ${r.median < 0 ? "" : ""}" style="color:${
+                r.median < 0 ? "var(--red)" : "var(--green)"
+              }">${money(r.median, 0)}</td>
+              <td>${r.ruin.toFixed(1)}%</td>
+              <td>${r.reach.toFixed(1)}%</td>
+            </tr>`
+          )
+          .join("");
       }
 
       function updatePercentiles(mc, p) {
         const d = p.moneyDecimals;
         el("percentileStats").innerHTML = [
-          stat(money(mc.min, d), "Worst run", toneOf(mc.min)),
-          stat(money(mc.p5, d), "5th pct", toneOf(mc.p5)),
-          stat(money(mc.p25, d), "25th pct", toneOf(mc.p25)),
-          stat(money(mc.median, d), "Median", toneOf(mc.median)),
-          stat(money(mc.p75, d), "75th pct", toneOf(mc.p75)),
-          stat(money(mc.p95, d), "95th pct", toneOf(mc.p95)),
-          stat(money(mc.max, d), "Best run", toneOf(mc.max)),
+          stat(money(mc.min, d), "Worst run", toneOf(mc.min),
+            "The single worst outcome of all 1000 runs. Reality can still beat it — price gaps and forced liquidation are not modeled."),
+          stat(money(mc.p5, d), "5th pct", toneOf(mc.p5),
+            "Bad-luck marker: only 1 run in 20 ended worse than this."),
+          stat(money(mc.p25, d), "25th pct", toneOf(mc.p25),
+            "A quarter of runs ended below this."),
+          stat(money(mc.median, d), "Median", toneOf(mc.median),
+            "The middle outcome — half of runs above, half below."),
+          stat(money(mc.p75, d), "75th pct", toneOf(mc.p75),
+            "A quarter of runs ended above this."),
+          stat(money(mc.p95, d), "95th pct", toneOf(mc.p95),
+            "Good-luck marker: only 1 run in 20 ended better than this."),
+          stat(money(mc.max, d), "Best run", toneOf(mc.max),
+            "The single luckiest run out of 1000. Do not plan around it."),
         ].join("");
       }
 
@@ -1009,13 +1219,61 @@
         const mc = runMonteCarlo(p, p.seed);
         lastMc = mc;
 
-        updateVerdict(mc, streak);
+        updateVerdict(mc, streak, p);
         updateHeadline(mc, p);
         updatePercentiles(mc, p);
         updatePriceLevels(p);
         updateLossTable(streak.rows, p);
+        updateStreakTable(mc);
+        updateSizingTable(sizingSweep(p), p);
         drawHistogram(mc);
         drawEquityCurves(mc);
+      }
+
+      // Tooltips: one viewport-fixed node, flipped and clamped to stay on screen
+      const TIP_GAP = 6;
+      const TIP_EDGE = 8;
+
+      function showTip(target) {
+        const tip = el("tooltip");
+        tip.textContent = target.getAttribute("data-tip");
+        tip.classList.add("visible");
+
+        const t = target.getBoundingClientRect();
+        const box = tip.getBoundingClientRect();
+
+        // Above by default; flip below when it would run off the top
+        let top = t.top - box.height - TIP_GAP;
+        if (top < TIP_EDGE) top = t.bottom + TIP_GAP;
+
+        let left = t.left;
+        const maxLeft = window.innerWidth - box.width - TIP_EDGE;
+        if (left > maxLeft) left = maxLeft;
+        if (left < TIP_EDGE) left = TIP_EDGE;
+
+        tip.style.top = top + "px";
+        tip.style.left = left + "px";
+      }
+
+      function hideTip() {
+        el("tooltip").classList.remove("visible");
+      }
+
+      function initTooltips() {
+        // Delegated: results re-render constantly, so per-element binding would rot
+        document.addEventListener("mouseover", (e) => {
+          const target = e.target.closest("[data-tip]");
+          if (target) showTip(target);
+        });
+        document.addEventListener("mouseout", (e) => {
+          if (e.target.closest("[data-tip]")) hideTip();
+        });
+        document.addEventListener("focusin", (e) => {
+          const target = e.target.closest("[data-tip]");
+          if (target) showTip(target);
+        });
+        document.addEventListener("focusout", hideTip);
+        window.addEventListener("scroll", hideTip, true);
       }
 
       function debounce(fn, ms) {
@@ -1029,6 +1287,7 @@
       document.addEventListener("DOMContentLoaded", () => {
         buildInputs();
         loadInputs();
+        initTooltips();
 
         const rerun = debounce(() => {
           saveInputs();
